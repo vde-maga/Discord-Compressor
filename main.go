@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"io"
 	"strings"
 )
 
@@ -92,6 +93,38 @@ func main() {
 		fmt.Printf("%s❌ IMPOSSÍVEL: O vídeo é muito longo para o limite de %d MB.%s\n", ColorRed, *targetMB, ColorReset)
 		os.Exit(1)
 	}
+
+	// ==============================================================================
+	// FAST PATH: Otimização para ficheiros já otimizados (Smart Passthrough)
+	// ==============================================================================
+	fileInfo, _ := os.Stat(inputFile)
+	if fileInfo.Size() <= params.TargetBytes && strings.HasSuffix(strings.ToLower(inputFile), ".webm") {
+		fmt.Printf("%s✅ Ficheiro já otimizado e dentro do limite (%.2f MB).%s\n", ColorGreen, float64(fileInfo.Size())/(1024*1024), ColorReset)
+		fmt.Printf("%s💡 A copiar diretamente sem recomprimir (perda zero).%s\n", ColorCyan, ColorReset)
+
+		src, err := os.Open(inputFile)
+		if err != nil {
+			fmt.Printf("%s❌ Erro ao abrir o ficheiro: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+		defer src.Close()
+
+		dst, err := os.Create(params.OutputPath)
+		if err != nil {
+			fmt.Printf("%s❌ Erro ao criar o ficheiro de destino: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			fmt.Printf("%s❌ Erro ao copiar o ficheiro: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+
+		fmt.Printf("%s✅ Sucesso!%s Ficheiro guardado como: %s\n", ColorGreen, ColorReset, params.OutputPath)
+		return // Sai imediatamente com sucesso
+	}
+	// ==============================================================================
 
 	printHeader(info, params)
 
