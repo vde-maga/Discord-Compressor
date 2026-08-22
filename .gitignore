@@ -5,6 +5,7 @@
    *.webm
    *.mp4
    *.mkv
+   tests/
 
    # Logs do FFmpeg 2-pass
    ffmpeg2pass*.log
