@@ -3,26 +3,30 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # Aciona apenas quando uma tag como v0.1.0 é criada
+      - 'v*'
 
 jobs:
   build:
-    name: Build ${{ matrix.os }} (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.goos }} (${{ matrix.goarch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            arch: amd64
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
             ext: ""
-          - os: windows-latest
-            arch: amd64
+          - runner: windows-latest
+            goos: windows
+            goarch: amd64
             ext: ".exe"
-          - os: macos-latest
-            arch: amd64
+          - runner: macos-latest
+            goos: darwin
+            goarch: amd64
             ext: ""
-          - os: macos-latest
-            arch: arm64
+          - runner: macos-latest
+            goos: darwin
+            goarch: arm64
             ext: ""
 
     steps:
@@ -33,17 +37,18 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          # Desativa a cache de dependências para evitar o aviso de "go.sum not found",
+          # já que este projeto usa apenas a biblioteca padrão (YAGNI).
+          cache: false 
 
       - name: Build binary
-        run: |
-          GOOS=$(echo ${{ matrix.os }} | sed 's/ubuntu/linux/; s/macos/darwin/')
-          GOARCH=${{ matrix.arch }}
-          go build -ldflags="-s -w" -o discord-compress-${GOOS}-${GOARCH}${{ matrix.ext }} .
+        # Agora isto é 100% compatível com Windows (PowerShell), Linux e macOS (Bash)
+        run: go build -ldflags="-s -w" -o discord-compress-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: discord-compress-${{ matrix.os }}-${{ matrix.arch }}
+          name: discord-compress-${{ matrix.goos }}-${{ matrix.goarch }}
           path: discord-compress-*
 
   release:
