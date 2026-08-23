@@ -1,11 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"io"
 	"math"
 	"os"
-	"io"
+	"strconv"
 	"strings"
 )
 
@@ -54,24 +54,60 @@ func printProgress(pct float64) {
 }
 
 func main() {
-	targetMB := flag.Int("target-mb", 20, "Limite de tamanho em MB")
-	useVP9 := flag.Bool("vp9", false, "Forçar o uso do codec VP9")
-	isFast := flag.Bool("fast", false, "Modo rápido (prioriza velocidade)")
-	
-	outputPath := flag.String("output", "", "Caminho do ficheiro de saída (ex: /tmp/video_final.webm)")
-	flag.StringVar(outputPath, "o", "", "Caminho do ficheiro de saída (atalho)")
+	// Valores por defeito
+	var targetMB int = 20
+	var useVP9 bool = false
+	var isFast bool = false
+	var outputPath string = ""
 
-	flag.Parse()
+	args := os.Args[1:]
+	var files []string
 
-	args := flag.Args()
-	if len(args) < 1 {
+	// Parsing manual flexível (permite flags em qualquer posição)
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--target-mb":
+			if i+1 < len(args) {
+				val, err := strconv.Atoi(args[i+1])
+				if err != nil {
+					fmt.Printf("%s❌ Erro: O valor para --target-mb deve ser um número inteiro.%s\n", ColorRed, ColorReset)
+					os.Exit(1)
+				}
+				targetMB = val
+				i++ // Saltar o valor
+			}
+		case "--vp9":
+			useVP9 = true
+		case "--fast":
+			isFast = true
+		case "--output", "-o":
+			if i+1 < len(args) {
+				outputPath = args[i+1]
+				i++ // Saltar o valor
+			}
+		default:
+			// Se não começa com '-', é um ficheiro
+			if !strings.HasPrefix(args[i], "-") {
+				files = append(files, args[i])
+			} else {
+				fmt.Printf("%s❌ Erro: Flag desconhecida '%s'.%s\n", ColorRed, args[i], ColorReset)
+				os.Exit(1)
+			}
+		}
+	}
+
+	if len(files) < 1 {
 		fmt.Printf("Uso: %sdiscord-compress%s <ficheiro> [opções]\n", ColorBold, ColorReset)
 		fmt.Printf("Exemplo: discord-compress video.mp4 --target-mb 20 --output resultado.webm\n\n")
-		flag.PrintDefaults()
+		fmt.Printf("Opções:\n")
+		fmt.Printf("  --target-mb int   Limite de tamanho em MB (default 20)\n")
+		fmt.Printf("  --vp9             Forçar o uso do codec VP9\n")
+		fmt.Printf("  --fast            Modo rápido (prioriza velocidade)\n")
+		fmt.Printf("  --output, -o      Caminho do ficheiro de saída\n")
 		os.Exit(1)
 	}
 
-	inputFile := args[0]
+	inputFile := files[0]
 
 	if _, err := os.Stat(inputFile); os.IsNotExist(err) {
 		fmt.Printf("%s❌ Erro: O ficheiro '%s' não existe.%s\n", ColorRed, inputFile, ColorReset)
@@ -85,23 +121,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	useAV1 := !*useVP9 && !*isFast
+	useAV1 := !useVP9 && !isFast
 	if useAV1 && !checkAV1Support() {
 		fmt.Printf("%s⚠️  libsvtav1 não encontrado. A usar VP9.%s\n", ColorYellow, ColorReset)
 		useAV1 = false
 	}
 
-	params := calculateParams(info, *targetMB, useAV1)
-	
-	if *outputPath != "" {
-		params.OutputPath = *outputPath
+	// 1. Calcular parâmetros padrão
+	params := calculateParams(info, targetMB, useAV1)
+
+	// 2. SOBREPOR o caminho de saída SE o utilizador especificou um
+	if outputPath != "" {
+		params.OutputPath = outputPath
 	}
-	
+
+	// 3. Validação de segurança
 	if params.VideoBitrate <= 50000 {
-		fmt.Printf("%s❌ IMPOSSÍVEL: O vídeo é muito longo para o limite de %d MB.%s\n", ColorRed, *targetMB, ColorReset)
+		fmt.Printf("%s❌ IMPOSSÍVEL: O vídeo é muito longo para o limite de %d MB.%s\n", ColorRed, targetMB, ColorReset)
 		os.Exit(1)
 	}
 
+	// ==============================================================================
+	// FAST PATH: Otimização para ficheiros já otimizados
+	// ==============================================================================
 	fileInfo, _ := os.Stat(inputFile)
 	if fileInfo.Size() <= params.TargetBytes && strings.HasSuffix(strings.ToLower(inputFile), ".webm") {
 		fmt.Printf("%s✅ Ficheiro já otimizado e dentro do limite (%.2f MB).%s\n", ColorGreen, float64(fileInfo.Size())/(1024*1024), ColorReset)
@@ -127,7 +169,7 @@ func main() {
 		}
 
 		fmt.Printf("%s✅ Sucesso!%s Ficheiro guardado como: %s\n", ColorGreen, ColorReset, params.OutputPath)
-		return // Sai imediatamente com sucesso
+		return
 	}
 	// ==============================================================================
 
