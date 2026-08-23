@@ -57,13 +57,16 @@ func main() {
 	targetMB := flag.Int("target-mb", 20, "Limite de tamanho em MB")
 	useVP9 := flag.Bool("vp9", false, "Forçar o uso do codec VP9")
 	isFast := flag.Bool("fast", false, "Modo rápido (prioriza velocidade)")
+	
+	outputPath := flag.String("output", "", "Caminho do ficheiro de saída (ex: /tmp/video_final.webm)")
+	flag.StringVar(outputPath, "o", "", "Caminho do ficheiro de saída (atalho)")
 
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {
 		fmt.Printf("Uso: %sdiscord-compress%s <ficheiro> [opções]\n", ColorBold, ColorReset)
-		fmt.Printf("Exemplo: discord-compress video.mp4 --target-mb 20 --fast\n\n")
+		fmt.Printf("Exemplo: discord-compress video.mp4 --target-mb 20 --output resultado.webm\n\n")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -89,14 +92,16 @@ func main() {
 	}
 
 	params := calculateParams(info, *targetMB, useAV1)
+	
+	if *outputPath != "" {
+		params.OutputPath = *outputPath
+	}
+	
 	if params.VideoBitrate <= 50000 {
 		fmt.Printf("%s❌ IMPOSSÍVEL: O vídeo é muito longo para o limite de %d MB.%s\n", ColorRed, *targetMB, ColorReset)
 		os.Exit(1)
 	}
 
-	// ==============================================================================
-	// FAST PATH: Otimização para ficheiros já otimizados (Smart Passthrough)
-	// ==============================================================================
 	fileInfo, _ := os.Stat(inputFile)
 	if fileInfo.Size() <= params.TargetBytes && strings.HasSuffix(strings.ToLower(inputFile), ".webm") {
 		fmt.Printf("%s✅ Ficheiro já otimizado e dentro do limite (%.2f MB).%s\n", ColorGreen, float64(fileInfo.Size())/(1024*1024), ColorReset)

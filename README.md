@@ -74,6 +74,10 @@ make build
 # Prioritize encoding speed over maximum compression (uses VP9)
 ./discord-compress video.mp4 --fast
 
+# Specify custom output path
+./discord-compress video.mp4 --output /tmp/final_video.webm
+./discord-compress video.mp4 -o /tmp/final_video.webm  # Shorthand
+
 # View all available options
 ./discord-compress --help
 ```
@@ -84,6 +88,10 @@ make build
 Usage of discord-compress:
   -fast
         Modo rápido (prioriza velocidade)
+  -o string
+        Caminho do ficheiro de saída (atalho)
+  -output string
+        Caminho do ficheiro de saída (ex: /tmp/video_final.webm)
   -target-mb int
         Limite de tamanho em MB (default 20)
   -vp9
